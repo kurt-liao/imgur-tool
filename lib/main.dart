@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:core';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
@@ -8,10 +8,10 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:footer/footer.dart';
 import 'package:footer/footer_view.dart';
-import 'package:http/http.dart' as http;
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'form_data.dart';
+import 'upload_form_data.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const ImgurUploadApp());
@@ -169,6 +169,8 @@ class UploadFormState extends State<UploadForm> {
   String fileName = '';
   dynamic iconColor = Colors.black;
 
+  bool isUploading = false;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -285,9 +287,9 @@ class UploadFormState extends State<UploadForm> {
                         // debugPrint('validation failed');
                       }
                     },
-                    child: const Text(
-                      'Submit',
-                      style: TextStyle(color: Colors.white),
+                    child: Text(
+                      !isUploading ? 'Submit' : 'Uploading...',
+                      style: const TextStyle(color: Colors.white),
                     ),
                   ),
                 ),
@@ -317,16 +319,89 @@ class UploadFormState extends State<UploadForm> {
     );
   }
 
-  Future<void> uploadImage(String? jsonData) {
+  /// 上傳圖片 api
+  Future<void> uploadImage(String? jsonData) async {
+    if (isUploading) {
+      return;
+    }
+
+    setState(() {
+      isUploading = true;
+    });
+
     Map<String, dynamic> json = jsonDecode(jsonData!);
-    final data = FormData.fromJson(json);
+    final data = UploadFormData.fromJson(json);
     final accessToken = data.access_token;
 
-    return http.post(Uri.parse('https://api.imgur.com/3/image'),
-        headers: <String, String>{'Authorization': 'Bearer $accessToken'},
-        body: FormData(accessToken));
+    if (chosenImage?.path == null || accessToken == '') {
+      return;
+    } else {
+      final Map<String, String> body = {"type": "image"};
+      final Map<String, String> headers = {
+        "Authorization": "Bearer $accessToken"
+      };
+      var request = http.MultipartRequest(
+          'POST', Uri.parse('https://api.imgur.com/3/image'))
+        ..fields.addAll(body)
+        ..headers.addAll(headers)
+        ..files
+            .add(await http.MultipartFile.fromPath('image', chosenImage!.path));
+
+      request.send().then((response) async {
+        setState(() {
+          isUploading = false;
+        });
+
+        bool isSuccess = (response.statusCode == 200) ? true : false;
+        final respJson = await response.stream.bytesToString();
+
+        var imgurObj = jsonDecode(respJson);
+        final imageId = imgurObj['data']['id'];
+        final imageLink = imgurObj['data']['link'];
+
+        showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                  title: Text.rich(
+                    TextSpan(
+                      style: const TextStyle(
+                        fontSize: 14,
+                      ),
+                      children: [
+                        WidgetSpan(
+                          child: Icon(
+                            isSuccess
+                                ? FontAwesomeIcons.checkDouble
+                                : FontAwesomeIcons.circleExclamation,
+                            size: 16.0,
+                            color: isSuccess ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                        TextSpan(
+                          text: isSuccess ? '上傳成功' : '上傳失敗',
+                        )
+                      ],
+                    ),
+                  ),
+                  content: isSuccess
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                              SelectableText('Image id: $imageId'),
+                              SelectableText('Image link: $imageLink')
+                            ])
+                      : const Text(
+                          '上傳失敗，請檢查 Access Token 是否正確！',
+                          style: TextStyle(color: Colors.red),
+                        ));
+            });
+      });
+    }
   }
 
+  /// 選擇要上傳的圖片
   Future<void> chooseImage() async {
     FilePickerResult? result =
         await FilePicker.platform.pickFiles(type: FileType.image);
@@ -344,6 +419,7 @@ class UploadFormState extends State<UploadForm> {
   }
 }
 
+/// 開啟某個網址
 Future<void> _launchUrl(url) async {
   if (!await launchUrl(url)) {
     throw 'Could not launch $url';
