@@ -325,10 +325,6 @@ class UploadFormState extends State<UploadForm> {
       return;
     }
 
-    setState(() {
-      isUploading = true;
-    });
-
     Map<String, dynamic> json = jsonDecode(jsonData!);
     final data = UploadFormData.fromJson(json);
     final accessToken = data.access_token;
@@ -336,6 +332,10 @@ class UploadFormState extends State<UploadForm> {
     if (chosenImage?.path == null || accessToken == '') {
       return;
     } else {
+      setState(() {
+        isUploading = true;
+      });
+
       final Map<String, String> body = {"type": "image"};
       final Map<String, String> headers = {
         "Authorization": "Bearer $accessToken"
