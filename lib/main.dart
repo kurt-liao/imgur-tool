@@ -389,8 +389,8 @@ class UploadFormState extends State<UploadForm> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                              SelectableText('Image id: $imageId'),
-                              SelectableText('Image link: $imageLink')
+                              SelectableText('圖片id: $imageId'),
+                              SelectableText('連結: $imageLink')
                             ])
                       : const Text(
                           '上傳失敗，請檢查 Access Token 是否正確！',
